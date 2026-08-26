@@ -1,0 +1,83 @@
+// Personal Finance & Portfolio App — Datenmodell
+// Geldbeträge werden durchgehend als Integer in Cent gespeichert (siehe src/lib/money.ts),
+// damit Summen keine Float-Rundungsfehler ansammeln.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum TxType {
+  INCOME
+  EXPENSE
+}
+
+enum Recurrence {
+  NONE
+  MONTHLY
+  YEARLY
+}
+
+enum Category {
+  SALARY
+  RENT
+  GROCERIES
+  SUBSCRIPTION
+  TRANSPORT
+  LEISURE
+  HEALTH
+  INSURANCE
+  SAVINGS
+  OTHER
+}
+
+model Transaction {
+  id         String     @id @default(cuid())
+  /// Cent, immer positiv — das Vorzeichen ergibt sich aus `type`.
+  amount     Int
+  type       TxType
+  category   Category
+  date       DateTime
+  recurrence Recurrence @default(NONE)
+  note       String?
+  createdAt  DateTime   @default(now())
+
+  @@index([date])
+}
+
+model Asset {
+  id     String @id @default(cuid())
+  symbol String
+  /// Bruchteile sind erlaubt (ETF-Sparpläne).
+  shares Float
+  /// Cent pro Anteil, notiert in `buyCurrency`.
+  buyPrice  Int
+  /// Notierungswährung des Papiers (aus dem Yahoo-Quote beim Anlegen).
+  currency  String   @default("USD")
+  /// Währung, in der der Kaufpreis eingegeben wurde. Kann von `currency`
+  /// abweichen — etwa beim Kauf eines US-Papiers über eine deutsche Börse in EUR.
+  /// Null = Altbestand vor diesem Feld, dann gilt `currency`.
+  buyCurrency String?
+  /// EUR je Einheit `buyCurrency` am Kauftag (EOD). Null = unbekannt, dann rechnet
+  /// die Bewertung mit dem heutigen Kurs und der Währungseffekt bleibt unsichtbar.
+  buyFxRate   Float?
+  buyDate   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([symbol])
+}
+
+/// Letzter bekannter Kurs je Symbol. Dient als Rate-Limit-Puffer gegenüber Yahoo
+/// und hält die App bei Netzwerkausfall lesbar. Enthält auch FX-Paare wie "EURUSD=X".
+model PriceCache {
+  symbol        String   @id
+  price         Float
+  currency      String
+  previousClose Float?
+  shortName     String?
+  fetchedAt     DateTime @updatedAt
+}
