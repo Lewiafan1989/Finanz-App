@@ -47,8 +47,27 @@ Kaufdatum ist Pflicht, weil die Wertentwicklung sonst nicht rekonstruierbar wär
 
 **Wertentwicklung aus echten EOD-Kursen.** `getPortfolioSeries()` holt die
 Kurshistorie und bewertet pro Handelstag nur die Lots, die zu dem Zeitpunkt schon
-gekauft waren. Vereinfachung: der FX-Kurs wird mit dem heutigen Stand gerechnet, nicht
-mit dem historischen.
+gekauft waren. Vereinfachung: der Marktwert wird mit dem heutigen Wechselkurs
+gerechnet, nicht mit dem des jeweiligen Tages — historische FX-Reihen wären ein
+zweiter Satz Abrufe pro Währung. Der Einsatz dagegen steht mit dem Kurs vom Kauftag
+in der Reihe, weil der ohnehin je Kauf gespeichert ist.
+
+**Währungen sind der heikelste Teil.** Kurse werden in Notierungswährung gespeichert
+und erst beim Lesen nach EUR umgerechnet — eine Umrechnung pro Anzeige statt eines
+zweiten, mitalternden Werts in der DB. Drei Regeln hängen daran:
+
+- *Fehlt ein FX-Kurs, wird nicht 1:1 gerechnet.* Die Position fällt aus den Summen
+  und die Seite sagt es (`Portfolio.unpriced` / `unconverted`, gerendert von
+  `PortfolioNotices`) — stille Abweichungen sind schlimmer als eine Lücke.
+- *Untereinheiten werden an der Quelle normalisiert.* Yahoo notiert London in Pence
+  ("GBp"), Tel Aviv in Agorot, Johannesburg in Cent. `quotes.ts` rechnet das beim
+  Abruf auf die Hauptwährung um; sonst steht der Kurs 100-fach zu hoch da und findet
+  kein FX-Paar. Groß-/Kleinschreibung ist dabei bedeutungstragend: "GBp" != "GBP".
+- *Kaufwährung ist nicht Notierungswährung.* Wer ein US-Papier über eine deutsche
+  Börse kauft, zahlt in EUR. `Asset.buyCurrency` hält fest, worin der Kaufpreis
+  eingegeben wurde, `Asset.buyFxRate` den EUR-Kurs vom Kauftag. Erst dadurch ist
+  "Investiert" der echte Einsatz und der Währungsanteil der Rendite ausweisbar
+  (`Position.fxGainEur`). Fehlt der Wert, gilt der heutige Kurs.
 
 **Wiederkehrend ist ein Intervall, kein Boolean.** `recurrence` kennt
 `NONE`/`MONTHLY`/`YEARLY`. Die Fixkosten-Kennzahl zählt je Serie nur die jüngste
@@ -62,9 +81,16 @@ Papier in der Tabelle zu stehen.
 ## Charts
 
 Beide Charts benutzen dieselben Farbrollen aus `globals.css`
-(`--chart-series`, `--chart-context`, `--chart-grid`), je ein Wertepaar für Light und
-Dark. Die Ausgabenverteilung ist ein sortiertes Balkendiagramm statt eines
-Kreisdiagramms — bei zehn Kategorien mit ähnlichen Beträgen sind Winkel nicht
-vergleichbar, Längen schon. Die Wertentwicklung nutzt das Emphasis-Muster: der
-Portfoliowert in der Akzentfarbe, das investierte Kapital als graue, gestrichelte
-Kontextlinie.
+(`--chart-series`, `--chart-context`, `--chart-grid`, `--chart-cat-1…4`), je ein
+Wertepaar für Light und Dark.
+
+Die Ausgabenverteilung ist ein Donut mit **höchstens fünf Segmenten**: Top 4 einzeln,
+alles Weitere als Sammelsegment im Kontextgrau. Ab da sind Winkel nicht mehr
+vergleichbar. Die kategoriale Palette hat genau **vier Slots**, weil größere Sets aus
+der Referenzpalette die Schwellen für Farbfehlsichtigkeit reißen (geprüft mit dem
+Validator des dataviz-Skills, All-Pairs in Light und Dark). Identität hängt deshalb
+nie an der Farbe allein: neben dem Ring steht jedes Segment mit Name, Betrag und
+Anteil — Legende und Tabellenansicht in einem.
+
+Die Wertentwicklung nutzt das Emphasis-Muster: der Portfoliowert in der Akzentfarbe,
+das investierte Kapital als graue, gestrichelte Kontextlinie.
